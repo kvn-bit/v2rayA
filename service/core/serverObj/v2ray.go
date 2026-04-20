@@ -69,21 +69,34 @@ func parseXHTTPRawJson(raw string) (map[string]interface{}, error) {
 	if m == nil {
 		m = make(map[string]interface{})
 	}
-	if _, ok := m["extra"]; !ok {
-		if _, hasPath := m["path"]; !hasPath {
-			if _, hasHost := m["host"]; !hasHost {
-				if _, hasMode := m["mode"]; !hasMode {
-					return map[string]interface{}{
-						"extra": m,
-					}, nil
-				}
-			}
-		}
+	if isXHTTPExtraPayload(m) {
+		return map[string]interface{}{
+			"extra": m,
+		}, nil
 	}
 	delete(m, "path")
 	delete(m, "host")
 	delete(m, "mode")
 	return m, nil
+}
+
+func isXHTTPExtraPayload(m map[string]interface{}) bool {
+	if m == nil {
+		return false
+	}
+	if _, ok := m["extra"]; ok {
+		return false
+	}
+	if _, ok := m["path"]; ok {
+		return false
+	}
+	if _, ok := m["host"]; ok {
+		return false
+	}
+	if _, ok := m["mode"]; ok {
+		return false
+	}
+	return true
 }
 
 func resolveXHTTPMode(mode string, raw string) string {
@@ -127,6 +140,32 @@ func findNestedXHTTPMode(m map[string]interface{}) string {
 		return findNestedXHTTPMode(extra)
 	}
 	return ""
+}
+
+func resolveXHTTPTuning(raw string) (scMaxConcurrentPosts int, scMaxEachPostBytes int, scMinPostsIntervalMs string) {
+	scMaxConcurrentPosts = 10
+	scMaxEachPostBytes = 1000000
+	scMinPostsIntervalMs = "30"
+	if strings.TrimSpace(raw) == "" {
+		return
+	}
+	var m map[string]interface{}
+	if err := jsoniter.Unmarshal([]byte(raw), &m); err != nil {
+		return
+	}
+	if isXHTTPExtraPayload(m) {
+		return
+	}
+	if v, ok := m["scMaxConcurrentPosts"].(float64); ok && int(v) > 0 {
+		scMaxConcurrentPosts = int(v)
+	}
+	if v, ok := m["scMaxEachPostBytes"].(float64); ok && int(v) > 0 {
+		scMaxEachPostBytes = int(v)
+	}
+	if v, ok := m["scMinPostsIntervalMs"].(string); ok && v != "" {
+		scMinPostsIntervalMs = v
+	}
+	return
 }
 
 func NewV2Ray(link string) (ServerObj, error) {
@@ -456,11 +495,15 @@ func (v *V2Ray) Configuration(info PriorInfo) (c Configuration, err error) {
 				return Configuration{}, fmt.Errorf("invalid xhttpRawJson: %w", err)
 			}
 			mode := resolveXHTTPMode(v.XHTTPMode, v.XHTTPRawJson)
+			scMaxConcurrentPosts, scMaxEachPostBytes, scMinPostsIntervalMs := resolveXHTTPTuning(v.XHTTPRawJson)
 			core.StreamSettings.XHTTPSettings = &coreObj.XHTTPSettings{
-				Path:        v.Path,
-				Host:        v.Host,
-				Mode:        mode,
-				Passthrough: passthrough,
+				Path:                 v.Path,
+				Host:                 v.Host,
+				Mode:                 mode,
+				SCMaxConcurrentPosts: scMaxConcurrentPosts,
+				SCMaxEachPostBytes:   scMaxEachPostBytes,
+				SCMinPostsIntervalMs: scMinPostsIntervalMs,
+				Passthrough:          passthrough,
 			}
 		default:
 			return Configuration{}, fmt.Errorf("unexpected transport type: %v", v.Net)

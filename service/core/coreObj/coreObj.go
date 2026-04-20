@@ -259,10 +259,13 @@ type QuicSettings struct {
 	Security string    `json:"security"`
 }
 type XHTTPSettings struct {
-	Path        string                 `json:"path"`
-	Host        string                 `json:"host,omitempty"`
-	Mode        string                 `json:"mode,omitempty"`
-	Passthrough map[string]interface{} `json:"-"`
+	Path                 string                 `json:"path"`
+	Host                 string                 `json:"host,omitempty"`
+	Mode                 string                 `json:"mode,omitempty"`
+	SCMaxConcurrentPosts int                    `json:"scMaxConcurrentPosts,omitempty"`
+	SCMaxEachPostBytes   int                    `json:"scMaxEachPostBytes,omitempty"`
+	SCMinPostsIntervalMs string                 `json:"scMinPostsIntervalMs,omitempty"`
+	Passthrough          map[string]interface{} `json:"-"`
 }
 
 func (x XHTTPSettings) MarshalJSON() ([]byte, error) {
@@ -274,9 +277,18 @@ func (x XHTTPSettings) MarshalJSON() ([]byte, error) {
 	if x.Mode != "" {
 		m["mode"] = x.Mode
 	}
+	if x.SCMaxConcurrentPosts != 0 {
+		m["scMaxConcurrentPosts"] = x.SCMaxConcurrentPosts
+	}
+	if x.SCMaxEachPostBytes != 0 {
+		m["scMaxEachPostBytes"] = x.SCMaxEachPostBytes
+	}
+	if x.SCMinPostsIntervalMs != "" {
+		m["scMinPostsIntervalMs"] = x.SCMinPostsIntervalMs
+	}
 	for k, v := range x.Passthrough {
 		switch k {
-		case "path", "host", "mode":
+		case "path", "host", "mode", "scMaxConcurrentPosts", "scMaxEachPostBytes", "scMinPostsIntervalMs":
 			continue
 		default:
 			m[k] = v

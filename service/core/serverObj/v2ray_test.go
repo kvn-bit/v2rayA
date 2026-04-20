@@ -87,9 +87,12 @@ func TestV2RayXHTTPConfigurationWithoutRawExtras(t *testing.T) {
 
 	got := configuredXHTTPSettingsJSON(t, v)
 	want := map[string]interface{}{
-		"path": "/",
-		"host": "proxy.example.com",
-		"mode": "auto",
+		"path":                 "/",
+		"host":                 "proxy.example.com",
+		"mode":                 "auto",
+		"scMaxConcurrentPosts": float64(10),
+		"scMaxEachPostBytes":   float64(1000000),
+		"scMinPostsIntervalMs": "30",
 	}
 	assertJSONEqual(t, got, want)
 }
@@ -115,10 +118,13 @@ func TestV2RayXHTTPConfigurationWithDownloadSettingsExtraPayload(t *testing.T) {
 
 	got := configuredXHTTPSettingsJSON(t, v)
 	assertJSONEqual(t, got, map[string]interface{}{
-		"path":  "/",
-		"host":  "proxy.example.com",
-		"mode":  "packet-up",
-		"extra": loadXHTTPFixture(t, "xhttp-extra-with-downloads.json"),
+		"path":                 "/",
+		"host":                 "proxy.example.com",
+		"mode":                 "packet-up",
+		"scMaxConcurrentPosts": float64(10),
+		"scMaxEachPostBytes":   float64(1000000),
+		"scMinPostsIntervalMs": "30",
+		"extra":                loadXHTTPFixture(t, "xhttp-extra-with-downloads.json"),
 	})
 }
 
@@ -154,10 +160,13 @@ func TestV2RayXHTTPRoundtripPreservesRawExtras(t *testing.T) {
 
 	got := configuredXHTTPSettingsJSON(t, parsedObj)
 	assertJSONEqual(t, got, map[string]interface{}{
-		"path":  "/",
-		"host":  "proxy.example.com",
-		"mode":  "packet-up",
-		"extra": loadXHTTPFixture(t, "xhttp-extra-with-downloads.json"),
+		"path":                 "/",
+		"host":                 "proxy.example.com",
+		"mode":                 "packet-up",
+		"scMaxConcurrentPosts": float64(10),
+		"scMaxEachPostBytes":   float64(1000000),
+		"scMinPostsIntervalMs": "30",
+		"extra":                loadXHTTPFixture(t, "xhttp-extra-with-downloads.json"),
 	})
 }
 
@@ -197,10 +206,13 @@ func TestParseVlessURLXHTTPExtraAliasHydratesRawJSON(t *testing.T) {
 
 	got := configuredXHTTPSettingsJSON(t, parsedObj)
 	assertJSONEqual(t, got, map[string]interface{}{
-		"path":  "/",
-		"host":  "proxy.example.com",
-		"mode":  "packet-up",
-		"extra": loadXHTTPFixture(t, "xhttp-extra-with-downloads.json"),
+		"path":                 "/",
+		"host":                 "proxy.example.com",
+		"mode":                 "packet-up",
+		"scMaxConcurrentPosts": float64(10),
+		"scMaxEachPostBytes":   float64(1000000),
+		"scMinPostsIntervalMs": "30",
+		"extra":                loadXHTTPFixture(t, "xhttp-extra-with-downloads.json"),
 	})
 }
 
@@ -248,10 +260,13 @@ func TestV2RayXHTTPConfigurationDerivesOuterModeFromNestedDownloadSettings(t *te
 
 	got := configuredXHTTPSettingsJSON(t, v)
 	assertJSONEqual(t, got, map[string]interface{}{
-		"path":  "/",
-		"host":  "proxy.example.com",
-		"mode":  "packet-up",
-		"extra": loadXHTTPFixture(t, "xhttp-extra-with-downloads.json"),
+		"path":                 "/",
+		"host":                 "proxy.example.com",
+		"mode":                 "packet-up",
+		"scMaxConcurrentPosts": float64(10),
+		"scMaxEachPostBytes":   float64(1000000),
+		"scMinPostsIntervalMs": "30",
+		"extra":                loadXHTTPFixture(t, "xhttp-extra-with-downloads.json"),
 	})
 }
 
@@ -276,10 +291,13 @@ func TestV2RayXHTTPConfigurationKeepsExplicitModeOverNestedMode(t *testing.T) {
 
 	got := configuredXHTTPSettingsJSON(t, v)
 	assertJSONEqual(t, got, map[string]interface{}{
-		"path":  "/",
-		"host":  "proxy.example.com",
-		"mode":  "stream-up",
-		"extra": loadXHTTPFixture(t, "xhttp-extra-with-downloads.json"),
+		"path":                 "/",
+		"host":                 "proxy.example.com",
+		"mode":                 "stream-up",
+		"scMaxConcurrentPosts": float64(10),
+		"scMaxEachPostBytes":   float64(1000000),
+		"scMinPostsIntervalMs": "30",
+		"extra":                loadXHTTPFixture(t, "xhttp-extra-with-downloads.json"),
 	})
 }
 
@@ -304,9 +322,12 @@ func TestV2RayXHTTPConfigurationKeepsAutoWhenNestedModeMissing(t *testing.T) {
 
 	got := configuredXHTTPSettingsJSON(t, v)
 	assertJSONEqual(t, got, map[string]interface{}{
-		"path": "/",
-		"host": "proxy.example.com",
-		"mode": "auto",
+		"path":                 "/",
+		"host":                 "proxy.example.com",
+		"mode":                 "auto",
+		"scMaxConcurrentPosts": float64(10),
+		"scMaxEachPostBytes":   float64(1000000),
+		"scMinPostsIntervalMs": "30",
 		"extra": map[string]interface{}{
 			"downloadSettings": map[string]interface{}{
 				"address": "download.example.com",
