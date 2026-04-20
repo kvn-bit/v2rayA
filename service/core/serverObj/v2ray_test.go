@@ -191,6 +191,9 @@ func TestParseVlessURLXHTTPExtraAliasHydratesRawJSON(t *testing.T) {
 	if parsedObj.XHTTPRawJson != rawJSON {
 		t.Fatalf("extra alias did not hydrate xhttpRawJson\nwant: %s\ngot:  %s", rawJSON, parsedObj.XHTTPRawJson)
 	}
+	if parsedObj.XHTTPMode != "packet-up" {
+		t.Fatalf("nested mode did not resolve outer xhttp mode\nwant: %s\ngot:  %s", "packet-up", parsedObj.XHTTPMode)
+	}
 
 	got := configuredXHTTPSettingsJSON(t, parsedObj)
 	assertJSONEqual(t, got, map[string]interface{}{
@@ -222,4 +225,94 @@ func TestV2RayXHTTPConfigurationRetainsFullObjectRawJSON(t *testing.T) {
 
 	got := configuredXHTTPSettingsJSON(t, v)
 	assertJSONEqual(t, got, loadXHTTPFixture(t, "xhttp-settings-with-downloads.json"))
+}
+
+func TestV2RayXHTTPConfigurationDerivesOuterModeFromNestedDownloadSettings(t *testing.T) {
+	v := &V2Ray{
+		Add:          "proxy.example.com",
+		Port:         "443",
+		ID:           "11111111-1111-1111-1111-111111111111",
+		Net:          "xhttp",
+		Path:         "/",
+		Host:         "proxy.example.com",
+		XHTTPMode:    "auto",
+		XHTTPRawJson: rawJSONFromXHTTPFixture(t, "xhttp-extra-with-downloads.json"),
+		TLS:          "reality",
+		SNI:          "proxy.example.com",
+		PublicKey:    "FAKE_PUBLIC_KEY",
+		ShortId:      "0123456789ab",
+		SpiderX:      "/",
+		Fingerprint:  "chrome",
+		Protocol:     "vless",
+	}
+
+	got := configuredXHTTPSettingsJSON(t, v)
+	assertJSONEqual(t, got, map[string]interface{}{
+		"path":  "/",
+		"host":  "proxy.example.com",
+		"mode":  "packet-up",
+		"extra": loadXHTTPFixture(t, "xhttp-extra-with-downloads.json"),
+	})
+}
+
+func TestV2RayXHTTPConfigurationKeepsExplicitModeOverNestedMode(t *testing.T) {
+	v := &V2Ray{
+		Add:          "proxy.example.com",
+		Port:         "443",
+		ID:           "11111111-1111-1111-1111-111111111111",
+		Net:          "xhttp",
+		Path:         "/",
+		Host:         "proxy.example.com",
+		XHTTPMode:    "stream-up",
+		XHTTPRawJson: rawJSONFromXHTTPFixture(t, "xhttp-extra-with-downloads.json"),
+		TLS:          "reality",
+		SNI:          "proxy.example.com",
+		PublicKey:    "FAKE_PUBLIC_KEY",
+		ShortId:      "0123456789ab",
+		SpiderX:      "/",
+		Fingerprint:  "chrome",
+		Protocol:     "vless",
+	}
+
+	got := configuredXHTTPSettingsJSON(t, v)
+	assertJSONEqual(t, got, map[string]interface{}{
+		"path":  "/",
+		"host":  "proxy.example.com",
+		"mode":  "stream-up",
+		"extra": loadXHTTPFixture(t, "xhttp-extra-with-downloads.json"),
+	})
+}
+
+func TestV2RayXHTTPConfigurationKeepsAutoWhenNestedModeMissing(t *testing.T) {
+	v := &V2Ray{
+		Add:          "proxy.example.com",
+		Port:         "443",
+		ID:           "11111111-1111-1111-1111-111111111111",
+		Net:          "xhttp",
+		Path:         "/",
+		Host:         "proxy.example.com",
+		XHTTPMode:    "auto",
+		XHTTPRawJson: `{"downloadSettings":{"address":"download.example.com","network":"xhttp","port":443}}`,
+		TLS:          "reality",
+		SNI:          "proxy.example.com",
+		PublicKey:    "FAKE_PUBLIC_KEY",
+		ShortId:      "0123456789ab",
+		SpiderX:      "/",
+		Fingerprint:  "chrome",
+		Protocol:     "vless",
+	}
+
+	got := configuredXHTTPSettingsJSON(t, v)
+	assertJSONEqual(t, got, map[string]interface{}{
+		"path": "/",
+		"host": "proxy.example.com",
+		"mode": "auto",
+		"extra": map[string]interface{}{
+			"downloadSettings": map[string]interface{}{
+				"address": "download.example.com",
+				"network": "xhttp",
+				"port":    float64(443),
+			},
+		},
+	})
 }

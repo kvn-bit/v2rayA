@@ -86,6 +86,49 @@ func parseXHTTPRawJson(raw string) (map[string]interface{}, error) {
 	return m, nil
 }
 
+func resolveXHTTPMode(mode string, raw string) string {
+	if mode != "" && mode != "auto" {
+		return mode
+	}
+	if strings.TrimSpace(raw) == "" {
+		if mode == "" {
+			return "auto"
+		}
+		return mode
+	}
+	var m map[string]interface{}
+	if err := jsoniter.Unmarshal([]byte(raw), &m); err != nil {
+		if mode == "" {
+			return "auto"
+		}
+		return mode
+	}
+	if nestedMode := findNestedXHTTPMode(m); nestedMode != "" {
+		return nestedMode
+	}
+	if mode == "" {
+		return "auto"
+	}
+	return mode
+}
+
+func findNestedXHTTPMode(m map[string]interface{}) string {
+	if m == nil {
+		return ""
+	}
+	if downloadSettings, ok := m["downloadSettings"].(map[string]interface{}); ok {
+		if xhttpSettings, ok := downloadSettings["xhttpSettings"].(map[string]interface{}); ok {
+			if mode, ok := xhttpSettings["mode"].(string); ok {
+				return mode
+			}
+		}
+	}
+	if extra, ok := m["extra"].(map[string]interface{}); ok {
+		return findNestedXHTTPMode(extra)
+	}
+	return ""
+}
+
 func NewV2Ray(link string) (ServerObj, error) {
 	if strings.HasPrefix(link, "vmess://") {
 		return ParseVmessURL(link)
@@ -146,13 +189,11 @@ func ParseVlessURL(vless string) (data *V2Ray, err error) {
 	}
 	if data.Net == "xhttp" {
 		data.XHTTPMode = u.Query().Get("xhttpMode")
-		if data.XHTTPMode == "" {
-			data.XHTTPMode = "auto"
-		}
 		data.XHTTPRawJson = u.Query().Get("xhttpRawJson")
 		if data.XHTTPRawJson == "" {
 			data.XHTTPRawJson = u.Query().Get("extra")
 		}
+		data.XHTTPMode = resolveXHTTPMode(data.XHTTPMode, data.XHTTPRawJson)
 	}
 	return data, nil
 }
@@ -414,10 +455,11 @@ func (v *V2Ray) Configuration(info PriorInfo) (c Configuration, err error) {
 			if err != nil {
 				return Configuration{}, fmt.Errorf("invalid xhttpRawJson: %w", err)
 			}
+			mode := resolveXHTTPMode(v.XHTTPMode, v.XHTTPRawJson)
 			core.StreamSettings.XHTTPSettings = &coreObj.XHTTPSettings{
 				Path:        v.Path,
 				Host:        v.Host,
-				Mode:        v.XHTTPMode,
+				Mode:        mode,
 				Passthrough: passthrough,
 			}
 		default:
