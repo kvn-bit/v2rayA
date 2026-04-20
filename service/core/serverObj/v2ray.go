@@ -53,8 +53,119 @@ type V2Ray struct {
 	Key           string `json:"key,omitempty"`
 	QuicSecurity  string `json:"quicSecurity"`
 	XHTTPMode     string `json:"xhttpMode,omitempty"`
+	XHTTPRawJson  string `json:"xhttpRawJson,omitempty"`
 	V             string `json:"v"`
 	Protocol      string `json:"protocol"`
+}
+
+func parseXHTTPRawJson(raw string) (map[string]interface{}, error) {
+	if strings.TrimSpace(raw) == "" {
+		return nil, nil
+	}
+	var m map[string]interface{}
+	if err := jsoniter.Unmarshal([]byte(raw), &m); err != nil {
+		return nil, err
+	}
+	if m == nil {
+		m = make(map[string]interface{})
+	}
+	if isXHTTPExtraPayload(m) {
+		return map[string]interface{}{
+			"extra": m,
+		}, nil
+	}
+	delete(m, "path")
+	delete(m, "host")
+	delete(m, "mode")
+	return m, nil
+}
+
+func isXHTTPExtraPayload(m map[string]interface{}) bool {
+	if m == nil {
+		return false
+	}
+	if _, ok := m["extra"]; ok {
+		return false
+	}
+	if _, ok := m["path"]; ok {
+		return false
+	}
+	if _, ok := m["host"]; ok {
+		return false
+	}
+	if _, ok := m["mode"]; ok {
+		return false
+	}
+	return true
+}
+
+func resolveXHTTPMode(mode string, raw string) string {
+	if mode != "" && mode != "auto" {
+		return mode
+	}
+	if strings.TrimSpace(raw) == "" {
+		if mode == "" {
+			return "auto"
+		}
+		return mode
+	}
+	var m map[string]interface{}
+	if err := jsoniter.Unmarshal([]byte(raw), &m); err != nil {
+		if mode == "" {
+			return "auto"
+		}
+		return mode
+	}
+	if nestedMode := findNestedXHTTPMode(m); nestedMode != "" {
+		return nestedMode
+	}
+	if mode == "" {
+		return "auto"
+	}
+	return mode
+}
+
+func findNestedXHTTPMode(m map[string]interface{}) string {
+	if m == nil {
+		return ""
+	}
+	if downloadSettings, ok := m["downloadSettings"].(map[string]interface{}); ok {
+		if xhttpSettings, ok := downloadSettings["xhttpSettings"].(map[string]interface{}); ok {
+			if mode, ok := xhttpSettings["mode"].(string); ok {
+				return mode
+			}
+		}
+	}
+	if extra, ok := m["extra"].(map[string]interface{}); ok {
+		return findNestedXHTTPMode(extra)
+	}
+	return ""
+}
+
+func resolveXHTTPTuning(raw string) (scMaxConcurrentPosts int, scMaxEachPostBytes int, scMinPostsIntervalMs string) {
+	scMaxConcurrentPosts = 10
+	scMaxEachPostBytes = 1000000
+	scMinPostsIntervalMs = "30"
+	if strings.TrimSpace(raw) == "" {
+		return
+	}
+	var m map[string]interface{}
+	if err := jsoniter.Unmarshal([]byte(raw), &m); err != nil {
+		return
+	}
+	if isXHTTPExtraPayload(m) {
+		return
+	}
+	if v, ok := m["scMaxConcurrentPosts"].(float64); ok && int(v) > 0 {
+		scMaxConcurrentPosts = int(v)
+	}
+	if v, ok := m["scMaxEachPostBytes"].(float64); ok && int(v) > 0 {
+		scMaxEachPostBytes = int(v)
+	}
+	if v, ok := m["scMinPostsIntervalMs"].(string); ok && v != "" {
+		scMinPostsIntervalMs = v
+	}
+	return
 }
 
 func NewV2Ray(link string) (ServerObj, error) {
@@ -117,9 +228,11 @@ func ParseVlessURL(vless string) (data *V2Ray, err error) {
 	}
 	if data.Net == "xhttp" {
 		data.XHTTPMode = u.Query().Get("xhttpMode")
-		if data.XHTTPMode == "" {
-			data.XHTTPMode = "auto"
+		data.XHTTPRawJson = u.Query().Get("xhttpRawJson")
+		if data.XHTTPRawJson == "" {
+			data.XHTTPRawJson = u.Query().Get("extra")
 		}
+		data.XHTTPMode = resolveXHTTPMode(data.XHTTPMode, data.XHTTPRawJson)
 	}
 	return data, nil
 }
@@ -274,14 +387,14 @@ func (v *V2Ray) Configuration(info PriorInfo) (c Configuration, err error) {
 					},
 				},
 			}
-		// if network == "tcp" {
-		// 	tcpSetting := coreObj.TCPSettings{
-		// 		Header: coreObj.TCPHeader{
-		// 			Type: "none",
-		// 		},
-		// 	}
-		// 	core.StreamSettings.TCPSettings = &tcpSetting
-		// }
+			// if network == "tcp" {
+			// 	tcpSetting := coreObj.TCPSettings{
+			// 		Header: coreObj.TCPHeader{
+			// 			Type: "none",
+			// 		},
+			// 	}
+			// 	core.StreamSettings.TCPSettings = &tcpSetting
+			// }
 		}
 		// 根据传输协议(network)修改streamSettings
 		//TODO: QUIC
@@ -377,17 +490,20 @@ func (v *V2Ray) Configuration(info PriorInfo) (c Configuration, err error) {
 				Security: v.QuicSecurity,
 			}
 		case "xhttp":
-			if v.Host != "" {
-				core.StreamSettings.XHTTPSettings = &coreObj.XHTTPSettings{
-					Path: v.Path,
-					Host: v.Host,
-					Mode: v.XHTTPMode,
-				}
-			} else {
-				core.StreamSettings.XHTTPSettings = &coreObj.XHTTPSettings{
-					Path: v.Path,
-					Mode: v.XHTTPMode,
-				}
+			passthrough, err := parseXHTTPRawJson(v.XHTTPRawJson)
+			if err != nil {
+				return Configuration{}, fmt.Errorf("invalid xhttpRawJson: %w", err)
+			}
+			mode := resolveXHTTPMode(v.XHTTPMode, v.XHTTPRawJson)
+			scMaxConcurrentPosts, scMaxEachPostBytes, scMinPostsIntervalMs := resolveXHTTPTuning(v.XHTTPRawJson)
+			core.StreamSettings.XHTTPSettings = &coreObj.XHTTPSettings{
+				Path:                 v.Path,
+				Host:                 v.Host,
+				Mode:                 mode,
+				SCMaxConcurrentPosts: scMaxConcurrentPosts,
+				SCMaxEachPostBytes:   scMaxEachPostBytes,
+				SCMinPostsIntervalMs: scMinPostsIntervalMs,
+				Passthrough:          passthrough,
 			}
 		default:
 			return Configuration{}, fmt.Errorf("unexpected transport type: %v", v.Net)
@@ -486,6 +602,7 @@ func (v *V2Ray) ExportToURL() string {
 			setValue(&query, "path", v.Path)
 			setValue(&query, "host", v.Host)
 			setValue(&query, "xhttpMode", v.XHTTPMode)
+			setValue(&query, "xhttpRawJson", v.XHTTPRawJson)
 		}
 		if v.TLS != "none" {
 			setValue(&query, "flow", v.Flow)

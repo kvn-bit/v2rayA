@@ -1002,6 +1002,21 @@ export default {
     }
   },
   methods: {
+    resolveNestedXHTTPMode(rawJson) {
+      if (!rawJson) {
+        return "";
+      }
+      try {
+        const obj = JSON.parse(rawJson);
+        const nestedMode =
+          obj?.downloadSettings?.xhttpSettings?.mode ||
+          obj?.extra?.downloadSettings?.xhttpSettings?.mode ||
+          "";
+        return typeof nestedMode === "string" ? nestedMode : "";
+      } catch {
+        return "";
+      }
+    },
     variant() {
       return localStorage["variant"]?.toLowerCase() || "v2ray";
     },
@@ -1020,6 +1035,11 @@ export default {
         return obj;
       } else if (url.toLowerCase().startsWith("vless://")) {
         let u = parseURL(url);
+        const xhttpRawJson = u.params.xhttpRawJson || u.params.extra || "";
+        const resolvedXHTTPMode =
+          u.params.xhttpMode && u.params.xhttpMode !== "auto"
+            ? u.params.xhttpMode
+            : this.resolveNestedXHTTPMode(xhttpRawJson) || u.params.xhttpMode || "auto";
         const o = {
           ps: decodeURIComponent(u.hash),
           add: u.host,
@@ -1040,8 +1060,8 @@ export default {
           spx: u.params.spx || "",
           allowInsecure: u.params.allowInsecure || false,
           key: u.params.key,
-          xhttpMode: u.params.xhttpMode || "auto",
-          xhttpRawJson: u.params.xhttpRawJson || "",
+          xhttpMode: resolvedXHTTPMode,
+          xhttpRawJson: xhttpRawJson,
           protocol: "vless",
         };
         if (o.alpn !== "") {
