@@ -69,6 +69,17 @@ func parseXHTTPRawJson(raw string) (map[string]interface{}, error) {
 	if m == nil {
 		m = make(map[string]interface{})
 	}
+	if _, ok := m["extra"]; !ok {
+		if _, hasPath := m["path"]; !hasPath {
+			if _, hasHost := m["host"]; !hasHost {
+				if _, hasMode := m["mode"]; !hasMode {
+					return map[string]interface{}{
+						"extra": m,
+					}, nil
+				}
+			}
+		}
+	}
 	delete(m, "path")
 	delete(m, "host")
 	delete(m, "mode")

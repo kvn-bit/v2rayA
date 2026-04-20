@@ -58,6 +58,11 @@ func passthroughJSONFromXHTTPFixture(t *testing.T, name string) string {
 	return marshalJSON(t, m)
 }
 
+func rawJSONFromXHTTPFixture(t *testing.T, name string) string {
+	t.Helper()
+	return marshalJSON(t, loadXHTTPFixture(t, name))
+}
+
 func configuredXHTTPSettingsJSON(t *testing.T, v *V2Ray) string {
 	t.Helper()
 	cfg, err := v.Configuration(PriorInfo{Tag: "proxy"})
@@ -89,7 +94,7 @@ func TestV2RayXHTTPConfigurationWithoutRawExtras(t *testing.T) {
 	assertJSONEqual(t, got, want)
 }
 
-func TestV2RayXHTTPConfigurationWithDownloadSettings(t *testing.T) {
+func TestV2RayXHTTPConfigurationWithDownloadSettingsExtraPayload(t *testing.T) {
 	v := &V2Ray{
 		Add:          "proxy.example.com",
 		Port:         "443",
@@ -98,7 +103,7 @@ func TestV2RayXHTTPConfigurationWithDownloadSettings(t *testing.T) {
 		Path:         "/",
 		Host:         "proxy.example.com",
 		XHTTPMode:    "packet-up",
-		XHTTPRawJson: passthroughJSONFromXHTTPFixture(t, "xhttp-settings-with-downloads.json"),
+		XHTTPRawJson: rawJSONFromXHTTPFixture(t, "xhttp-extra-with-downloads.json"),
 		TLS:          "reality",
 		SNI:          "proxy.example.com",
 		PublicKey:    "FAKE_PUBLIC_KEY",
@@ -109,11 +114,16 @@ func TestV2RayXHTTPConfigurationWithDownloadSettings(t *testing.T) {
 	}
 
 	got := configuredXHTTPSettingsJSON(t, v)
-	assertJSONEqual(t, got, loadXHTTPFixture(t, "xhttp-settings-with-downloads.json"))
+	assertJSONEqual(t, got, map[string]interface{}{
+		"path":  "/",
+		"host":  "proxy.example.com",
+		"mode":  "packet-up",
+		"extra": loadXHTTPFixture(t, "xhttp-extra-with-downloads.json"),
+	})
 }
 
 func TestV2RayXHTTPRoundtripPreservesRawExtras(t *testing.T) {
-	rawJSON := passthroughJSONFromXHTTPFixture(t, "xhttp-settings-with-downloads.json")
+	rawJSON := rawJSONFromXHTTPFixture(t, "xhttp-extra-with-downloads.json")
 	original := &V2Ray{
 		Ps:           "xhttp-node",
 		Add:          "proxy.example.com",
@@ -143,11 +153,16 @@ func TestV2RayXHTTPRoundtripPreservesRawExtras(t *testing.T) {
 	}
 
 	got := configuredXHTTPSettingsJSON(t, parsedObj)
-	assertJSONEqual(t, got, loadXHTTPFixture(t, "xhttp-settings-with-downloads.json"))
+	assertJSONEqual(t, got, map[string]interface{}{
+		"path":  "/",
+		"host":  "proxy.example.com",
+		"mode":  "packet-up",
+		"extra": loadXHTTPFixture(t, "xhttp-extra-with-downloads.json"),
+	})
 }
 
 func TestParseVlessURLXHTTPExtraAliasHydratesRawJSON(t *testing.T) {
-	rawJSON := passthroughJSONFromXHTTPFixture(t, "xhttp-settings-with-downloads.json")
+	rawJSON := rawJSONFromXHTTPFixture(t, "xhttp-extra-with-downloads.json")
 	query := url.Values{
 		"type":      []string{"xhttp"},
 		"security":  []string{"reality"},
@@ -178,5 +193,33 @@ func TestParseVlessURLXHTTPExtraAliasHydratesRawJSON(t *testing.T) {
 	}
 
 	got := configuredXHTTPSettingsJSON(t, parsedObj)
+	assertJSONEqual(t, got, map[string]interface{}{
+		"path":  "/",
+		"host":  "proxy.example.com",
+		"mode":  "packet-up",
+		"extra": loadXHTTPFixture(t, "xhttp-extra-with-downloads.json"),
+	})
+}
+
+func TestV2RayXHTTPConfigurationRetainsFullObjectRawJSON(t *testing.T) {
+	v := &V2Ray{
+		Add:          "proxy.example.com",
+		Port:         "443",
+		ID:           "11111111-1111-1111-1111-111111111111",
+		Net:          "xhttp",
+		Path:         "/",
+		Host:         "proxy.example.com",
+		XHTTPMode:    "packet-up",
+		XHTTPRawJson: rawJSONFromXHTTPFixture(t, "xhttp-settings-with-downloads.json"),
+		TLS:          "reality",
+		SNI:          "proxy.example.com",
+		PublicKey:    "FAKE_PUBLIC_KEY",
+		ShortId:      "0123456789ab",
+		SpiderX:      "/",
+		Fingerprint:  "chrome",
+		Protocol:     "vless",
+	}
+
+	got := configuredXHTTPSettingsJSON(t, v)
 	assertJSONEqual(t, got, loadXHTTPFixture(t, "xhttp-settings-with-downloads.json"))
 }
