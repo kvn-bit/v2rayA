@@ -1,6 +1,7 @@
 package serverObj
 
 import (
+	"net/url"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -139,6 +140,41 @@ func TestV2RayXHTTPRoundtripPreservesRawExtras(t *testing.T) {
 	}
 	if parsedObj.XHTTPRawJson != rawJSON {
 		t.Fatalf("xhttpRawJson changed after roundtrip\nwant: %s\ngot:  %s", rawJSON, parsedObj.XHTTPRawJson)
+	}
+
+	got := configuredXHTTPSettingsJSON(t, parsedObj)
+	assertJSONEqual(t, got, loadXHTTPFixture(t, "xhttp-settings-with-downloads.json"))
+}
+
+func TestParseVlessURLXHTTPExtraAliasHydratesRawJSON(t *testing.T) {
+	rawJSON := passthroughJSONFromXHTTPFixture(t, "xhttp-settings-with-downloads.json")
+	query := url.Values{
+		"type":      []string{"xhttp"},
+		"security":  []string{"reality"},
+		"path":      []string{"/"},
+		"host":      []string{"proxy.example.com"},
+		"sni":       []string{"proxy.example.com"},
+		"fp":        []string{"chrome"},
+		"pbk":       []string{"FAKE_PUBLIC_KEY"},
+		"sid":       []string{"0123456789ab"},
+		"spx":       []string{"/"},
+		"xhttpMode": []string{"packet-up"},
+		"extra":     []string{rawJSON},
+	}
+	link := (&url.URL{
+		Scheme:   "vless",
+		User:     url.User("11111111-1111-1111-1111-111111111111"),
+		Host:     "proxy.example.com:443",
+		RawQuery: query.Encode(),
+		Fragment: "xhttp-node",
+	}).String()
+
+	parsedObj, err := ParseVlessURL(link)
+	if err != nil {
+		t.Fatalf("failed to parse vless url with extra alias: %v", err)
+	}
+	if parsedObj.XHTTPRawJson != rawJSON {
+		t.Fatalf("extra alias did not hydrate xhttpRawJson\nwant: %s\ngot:  %s", rawJSON, parsedObj.XHTTPRawJson)
 	}
 
 	got := configuredXHTTPSettingsJSON(t, parsedObj)

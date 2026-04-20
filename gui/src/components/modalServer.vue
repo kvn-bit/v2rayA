@@ -1041,7 +1041,7 @@ export default {
           allowInsecure: u.params.allowInsecure || false,
           key: u.params.key,
           xhttpMode: u.params.xhttpMode || "auto",
-          xhttpRawJson: u.params.xhttpRawJson || "",
+          xhttpRawJson: u.params.xhttpRawJson || u.params.extra || "",
           protocol: "vless",
         };
         if (o.alpn !== "") {

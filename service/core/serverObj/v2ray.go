@@ -139,6 +139,9 @@ func ParseVlessURL(vless string) (data *V2Ray, err error) {
 			data.XHTTPMode = "auto"
 		}
 		data.XHTTPRawJson = u.Query().Get("xhttpRawJson")
+		if data.XHTTPRawJson == "" {
+			data.XHTTPRawJson = u.Query().Get("extra")
+		}
 	}
 	return data, nil
 }
